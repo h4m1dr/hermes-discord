@@ -1,0 +1,3 @@
+# Hermes agent is installed directly via pip in Dockerfile, 
+# but you can list optional dependencies here if needed.
+hermes-agent
