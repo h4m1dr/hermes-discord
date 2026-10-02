@@ -1,40 +1,46 @@
 import os
 import threading
+import time
+import requests
 from http.server import HTTPServer, BaseHTTPRequestHandler
-import urllib.request
 
-# پورت رندر
-PORT = int(os.environ.get("PORT", 10000))
-MAIN_APP_URL = os.environ.get("MAIN_APP_URL", "https://hermes-discord.onrender.com")
-
-class WakeUpHandler(BaseHTTPRequestHandler):
+# 1. Simple HTTP server to keep Render port scanner happy and prevent timeouts
+class KeepAliveHandler(BaseHTTPRequestHandler):
     def do_GET(self):
-        # بررسی اینکه آیا درخواست بیدارباش است یا پینگ معمولی رندر
-        if self.path == "/wake":
-            try:
-                # پینگ کردن سرور اصلی برای بیدار کردن آن از حالت Sleep
-                req = urllib.request.Request(MAIN_APP_URL)
-                with urllib.request.urlopen(req, timeout=5) as response:
-                    status = response.getcode()
-                
-                self.send_response(200)
-                self.end_headers()
-                self.wfile.write(f"Wake-up signal sent to main app. Status: {status}".encode())
-            except Exception as e:
-                self.send_response(500)
-                self.end_headers()
-                self.wfile.write(f"Failed to wake up main app: {str(e)}".encode())
-        else:
-            # پاسخ استاندارد برای راضی نگه داشتن پورت اسکنر Render
-            self.send_response(200)
-            self.end_headers()
-            self.wfile.write(b"Proxy Wake-Up Bot is active and running!")
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"Proxy Wake-up Bot is active and running!")
 
 def run_server():
-    server = HTTPServer(('0.0.0.0', PORT), WakeUpHandler)
-    print(f"Wake-up proxy server running on port {PORT}...")
+    port = int(os.environ.get("PORT", 10000))
+    server = HTTPServer(('0.0.0.0', port), KeepAliveHandler)
+    print(f"Keep-alive web server running on port {port}...")
     server.serve_forever()
 
+# 2. Background task to periodically ping the main Hermes Render URL to keep it awake if needed
+def background_pinger():
+    target_url = os.environ.get("MAIN_HERMES_URL", "https://your-main-hermes-app.onrender.com")
+    while True:
+        try:
+            # Send a light ping to wake up the main service
+            response = requests.get(target_url, timeout=10)
+            print(f"Pinged main Hermes service, status: {response.status_code}")
+        except Exception as e:
+            print(f"Wake-up ping failed: {e}")
+        
+        # Ping every 10 minutes to prevent sleep
+        time.sleep(600)
+
 if __name__ == "__main__":
-    # اجرای سرور در پورت اصلی رندر
-    run_server()
+    # Start the web server in a background thread to satisfy Render port binding
+    server_thread = threading.Thread(target=run_server, daemon=True)
+    server_thread.start()
+
+    # Optional: Start the pinger thread if automatic background waking is desired
+    pinger_thread = threading.Thread(target=background_pinger, daemon=True)
+    pinger_thread.start()
+
+    # Keep the main process alive
+    print("Proxy manager started successfully.")
+    while True:
+        time.sleep(1)
