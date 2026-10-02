@@ -3,6 +3,7 @@ import subprocess
 import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
+# Simple HTTP request handler to keep Render's port scanner happy
 class KeepAliveHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -10,6 +11,7 @@ class KeepAliveHandler(BaseHTTPRequestHandler):
         self.wfile.write(b"Hermes Discord Bot is active and running!")
 
 def run_server():
+    # Fetch port from environment variable assigned by Render, default to 10000
     port = int(os.environ.get("PORT", 10000))
     server = HTTPServer(('0.0.0.0', port), KeepAliveHandler)
     print(f"Keep-alive web server running on port {port}...")
@@ -17,13 +19,13 @@ def run_server():
 
 def run_hermes():
     print("Starting Hermes Gateway for Discord...")
-    # اجرای دستور رسمی گیت‌وی هرمس برای دیسکورد
+    # Execute the official hermes gateway command for Discord channel
     subprocess.run(["hermes", "gateway", "--channel", "discord"])
 
 if __name__ == "__main__":
-    # اجرای وب‌سرور در پس‌زمینه برای اینکه Render پورت باز ببیند و تایم‌اوت ندهد
+    # Start the web server in a background thread to prevent Render port timeout
     server_thread = threading.Thread(target=run_server, daemon=True)
     server_thread.start()
 
-    # اجرای ترد اصلی بات دیسکورد هرمس
+    # Start the main Hermes Discord bot process
     run_hermes()
