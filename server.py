@@ -1,43 +1,40 @@
 import os
-import subprocess
 import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
+import urllib.request
 
-# 1. HTTP server to keep Render port scanner happy (Port 10000)
-class KeepAliveHandler(BaseHTTPRequestHandler):
+# پورت رندر
+PORT = int(os.environ.get("PORT", 10000))
+MAIN_APP_URL = os.environ.get("MAIN_APP_URL", "https://hermes-discord.onrender.com")
+
+class WakeUpHandler(BaseHTTPRequestHandler):
     def do_GET(self):
-        self.send_response(200)
-        self.end_headers()
-        self.wfile.write(b"Hermes Discord Bot is active and running!")
+        # بررسی اینکه آیا درخواست بیدارباش است یا پینگ معمولی رندر
+        if self.path == "/wake":
+            try:
+                # پینگ کردن سرور اصلی برای بیدار کردن آن از حالت Sleep
+                req = urllib.request.Request(MAIN_APP_URL)
+                with urllib.request.urlopen(req, timeout=5) as response:
+                    status = response.getcode()
+                
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(f"Wake-up signal sent to main app. Status: {status}".encode())
+            except Exception as e:
+                self.send_response(500)
+                self.end_headers()
+                self.wfile.write(f"Failed to wake up main app: {str(e)}".encode())
+        else:
+            # پاسخ استاندارد برای راضی نگه داشتن پورت اسکنر Render
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b"Proxy Wake-Up Bot is active and running!")
 
 def run_server():
-    port = int(os.environ.get("PORT", 10000))
-    server = HTTPServer(('0.0.0.0', port), KeepAliveHandler)
-    print(f"Keep-alive web server running on port {port}...")
+    server = HTTPServer(('0.0.0.0', PORT), WakeUpHandler)
+    print(f"Wake-up proxy server running on port {PORT}...")
     server.serve_forever()
 
-def run_hermes():
-    print("Configuring environment for Hermes Agent...")
-    
-    # Force allow all users so your Discord ID is not blocked!
-    os.environ["GATEWAY_ALLOW_ALL_USERS"] = "true"
-    
-    # Run hermes gateway in a safe loop to handle restarts gracefully
-    while True:
-        print("Starting Hermes Gateway...")
-        try:
-            result = subprocess.run(["hermes", "gateway", "run"])
-            print(f"Hermes exited with code {result.returncode}, restarting...")
-        except Exception as e:
-            print(f"Hermes gateway exception: {e}")
-        
-        import time
-        time.sleep(5)
-
 if __name__ == "__main__":
-    # Start the HTTP keep-alive server in the background thread (keeps Render alive)
-    server_thread = threading.Thread(target=run_server, daemon=True)
-    server_thread.start()
-
-    # Start Hermes in the main thread
-    run_hermes()
+    # اجرای سرور در پورت اصلی رندر
+    run_server()
