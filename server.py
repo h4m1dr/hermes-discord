@@ -25,17 +25,14 @@ if __name__ == "__main__":
     keep_alive_thread = threading.Thread(target=run_keep_alive, daemon=True)
     keep_alive_thread.start()
 
-    # 2. Start the main Hermes Gateway engine
+    # 2. Start the main Hermes Gateway engine using the official CLI
     print("Starting Hermes Gateway...")
     try:
-        # Attempt to run the standard Hermes Agent module
-        subprocess.run([sys.executable, "-m", "hermes.gateway"], check=True)
-    except Exception as e:
-        print(f"First method failed: {e}")
-        print("Attempting fallback method (hermes gateway run)...")
-        try:
-            subprocess.run(["hermes", "gateway", "run"], check=True)
-        except Exception as e2:
-            print(f"Critical error: Cannot start Hermes. {e2}")
-            print("Please verify the correct execution command for your bot.")
-            sys.exit(1)
+        # The hermes-agent package provides a 'hermes' CLI command
+        subprocess.run(["hermes", "gateway", "run"], check=True)
+    except FileNotFoundError:
+        print("Error: 'hermes' command not found. Ensure hermes-agent is installed.")
+        sys.exit(1)
+    except subprocess.CalledProcessError as e:
+        print(f"Critical error: Hermes gateway exited with code {e.returncode}")
+        sys.exit(1)
