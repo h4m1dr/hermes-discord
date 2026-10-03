@@ -24,17 +24,18 @@ def inject_hermes_env():
     # 1. Get variables from Render (with 9router defaults as fallback)
     base_url = os.environ.get("OPENAI_API_BASE", "https://9r.ykno.ir/v1")
     api_key = os.environ.get("OPENAI_API_KEY", "")
-    model_name = os.environ.get("OPENAI_MODEL_NAME", "Gemini")
+    model_name = os.environ.get("OPENAI_MODEL_NAME", "Auto-Pilot")
     
     # 2. Trick Hermes by also setting OpenRouter variables to the same 9router values
     openrouter_key = os.environ.get("OPENROUTER_API_KEY", api_key)
     openrouter_base = os.environ.get("OPENROUTER_API_BASE", base_url)
 
-    config_dir = Path.home() / ".hermes"
+    # Hermes on Render uses /opt/data/.env for persistent config
+    config_dir = Path("/opt/data")
     config_dir.mkdir(parents=True, exist_ok=True)
     env_file = config_dir / ".env"
 
-    # Read existing lines and remove old conflicting entries
+    # Read existing lines and remove old conflicting entries to prevent duplicates
     lines = []
     if env_file.exists():
         with open(env_file, "r", encoding="utf-8") as f:
