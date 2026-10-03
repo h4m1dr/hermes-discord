@@ -1,46 +1,41 @@
 import os
 import threading
-import time
-import requests
+import subprocess
+import sys
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
-# 1. Simple HTTP server to keep Render port scanner happy and prevent timeouts
+# ۱. سرور Keep-Alive برای راضی نگه داشتن رندر
 class KeepAliveHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.end_headers()
-        self.wfile.write(b"Proxy Wake-up Bot is active and running!")
+        self.wfile.write(b"Hermes Discord Agent is awake and running!")
+        
+    def log_message(self, format, *args):
+        pass # غیرفعال کردن لاگ‌های اضافی HTTP
 
-def run_server():
+def run_keep_alive():
     port = int(os.environ.get("PORT", 10000))
     server = HTTPServer(('0.0.0.0', port), KeepAliveHandler)
-    print(f"Keep-alive web server running on port {port}...")
+    print(f"✅ Keep-alive server running on port {port} to satisfy Render.")
     server.serve_forever()
 
-# 2. Background task to periodically ping the main Hermes Render URL to keep it awake if needed
-def background_pinger():
-    target_url = os.environ.get("MAIN_HERMES_URL", "https://your-main-hermes-app.onrender.com")
-    while True:
-        try:
-            # Send a light ping to wake up the main service
-            response = requests.get(target_url, timeout=10)
-            print(f"Pinged main Hermes service, status: {response.status_code}")
-        except Exception as e:
-            print(f"Wake-up ping failed: {e}")
-        
-        # Ping every 10 minutes to prevent sleep
-        time.sleep(600)
-
 if __name__ == "__main__":
-    # Start the web server in a background thread to satisfy Render port binding
-    server_thread = threading.Thread(target=run_server, daemon=True)
-    server_thread.start()
+    # شروع سرور Keep-Alive در یک ترد جداگانه (پس‌زمینه)
+    keep_alive_thread = threading.Thread(target=run_keep_alive, daemon=True)
+    keep_alive_thread.start()
 
-    # Optional: Start the pinger thread if automatic background waking is desired
-    pinger_thread = threading.Thread(target=background_pinger, daemon=True)
-    pinger_thread.start()
-
-    # Keep the main process alive
-    print("Proxy manager started successfully.")
-    while True:
-        time.sleep(1)
+    # ۲. استارت زدن موتور اصلی ربات Hermes
+    print("🚀 Starting Hermes Gateway...")
+    try:
+        # تلاش برای اجرای دستور استاندارد Hermes Agent
+        subprocess.run([sys.executable, "-m", "hermes.gateway"], check=True)
+    except Exception as e:
+        print(f"⚠️ روش اول اجرا نشد: {e}")
+        print("در حال تلاش برای روش جایگزین (hermes gateway run)...")
+        try:
+            subprocess.run(["hermes", "gateway", "run"], check=True)
+        except Exception as e2:
+            print(f"❌ خطای حیاتی: نمی‌توان Hermes را اجرا کرد. {e2}")
+            print("لطفاً بررسی کنید که دستور اجرای صحیح ربات شما چیست.")
+            sys.exit(1)
