@@ -5,7 +5,6 @@ import sys
 from pathlib import Path
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
-# 1. Keep-Alive server to satisfy Render's port binding requirement
 class KeepAliveHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -13,7 +12,7 @@ class KeepAliveHandler(BaseHTTPRequestHandler):
         self.wfile.write(b"Hermes Discord Agent is awake and running!")
         
     def log_message(self, format, *args):
-        pass  # Disable default HTTP logging to keep console clean
+        pass  # Disable default HTTP logging
 
 def run_keep_alive():
     port = int(os.environ.get("PORT", 10000))
@@ -22,54 +21,59 @@ def run_keep_alive():
     server.serve_forever()
 
 def inject_hermes_env():
-    """
-    Forcefully writes Render environment variables into Hermes' local .env file.
-    This prevents Hermes from falling back to default OpenAI settings.
-    """
-    base_url = os.environ.get("OPENAI_API_BASE")
-    api_key = os.environ.get("OPENAI_API_KEY")
-    model_name = os.environ.get("OPENAI_MODEL_NAME")
+    # 1. Get variables from Render (with 9router defaults as fallback)
+    base_url = os.environ.get("OPENAI_API_BASE", "https://9r.ykno.ir/v1")
+    api_key = os.environ.get("OPENAI_API_KEY", "")
+    model_name = os.environ.get("OPENAI_MODEL_NAME", "Gemini")
+    
+    # 2. Trick Hermes by also setting OpenRouter variables to the same 9router values
+    openrouter_key = os.environ.get("OPENROUTER_API_KEY", api_key)
+    openrouter_base = os.environ.get("OPENROUTER_API_BASE", base_url)
 
-    if not all([base_url, api_key, model_name]):
-        print("⚠️ Warning: Missing required OPENAI_* environment variables in Render.")
-        return
-
-    # Hermes default configuration directory
     config_dir = Path.home() / ".hermes"
     config_dir.mkdir(parents=True, exist_ok=True)
     env_file = config_dir / ".env"
 
-    # Read existing lines and remove old OPENAI entries to prevent duplicates
+    # Read existing lines and remove old conflicting entries
     lines = []
     if env_file.exists():
         with open(env_file, "r", encoding="utf-8") as f:
             lines = [
                 line for line in f 
-                if not line.startswith(("OPENAI_API_BASE=", "OPENAI_API_KEY=", "OPENAI_MODEL_NAME="))
+                if not line.startswith((
+                    "OPENAI_API_BASE=", "OPENAI_API_KEY=", "OPENAI_MODEL_NAME=",
+                    "OPENROUTER_API_BASE=", "OPENROUTER_API_KEY="
+                ))
             ]
 
-    # Append the correct, fresh variables from Render
+    # Append the correct, fresh variables
     lines.append(f"OPENAI_API_BASE={base_url}\n")
     lines.append(f"OPENAI_API_KEY={api_key}\n")
     lines.append(f"OPENAI_MODEL_NAME={model_name}\n")
+    lines.append(f"OPENROUTER_API_BASE={openrouter_base}\n")
+    lines.append(f"OPENROUTER_API_KEY={openrouter_key}\n")
 
     # Write back to the file
     with open(env_file, "w", encoding="utf-8") as f:
         f.writelines(lines)
 
-    print(f"✅ Successfully injected LLM config into {env_file}")
-    print(f"   Base: {base_url}")
-    print(f"   Model: {model_name}")
+    # Print a clear success message for the Render logs
+    print("="*70)
+    print("✅ SUCCESSFULLY INJECTED HERMES ENVIRONMENT VARIABLES")
+    print(f"   API BASE: {base_url}")
+    print(f"   MODEL: {model_name}")
+    print(f"   ENV FILE: {env_file}")
+    print("="*70)
 
 if __name__ == "__main__":
-    # Step A: Inject the correct environment variables before Hermes starts
+    # Step A: Inject the environment variables BEFORE Hermes starts
     inject_hermes_env()
 
     # Step B: Start the Keep-Alive server in a background daemon thread
     keep_alive_thread = threading.Thread(target=run_keep_alive, daemon=True)
     keep_alive_thread.start()
 
-    # Step C: Start the main Hermes Gateway engine using the official CLI
+    # Step C: Start the main Hermes Gateway engine
     print("🚀 Starting Hermes Gateway...")
     try:
         subprocess.run(["hermes", "gateway", "run"], check=True)
