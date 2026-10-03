@@ -4,7 +4,7 @@ import subprocess
 import sys
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
-# ۱. سرور Keep-Alive برای راضی نگه داشتن رندر
+# 1. Keep-Alive server to satisfy Render's port binding requirement
 class KeepAliveHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -12,30 +12,30 @@ class KeepAliveHandler(BaseHTTPRequestHandler):
         self.wfile.write(b"Hermes Discord Agent is awake and running!")
         
     def log_message(self, format, *args):
-        pass # غیرفعال کردن لاگ‌های اضافی HTTP
+        pass  # Disable default HTTP logging to keep console clean
 
 def run_keep_alive():
     port = int(os.environ.get("PORT", 10000))
     server = HTTPServer(('0.0.0.0', port), KeepAliveHandler)
-    print(f"✅ Keep-alive server running on port {port} to satisfy Render.")
+    print(f"Keep-alive server running on port {port} to satisfy Render.")
     server.serve_forever()
 
 if __name__ == "__main__":
-    # شروع سرور Keep-Alive در یک ترد جداگانه (پس‌زمینه)
+    # Start the Keep-Alive server in a background daemon thread
     keep_alive_thread = threading.Thread(target=run_keep_alive, daemon=True)
     keep_alive_thread.start()
 
-    # ۲. استارت زدن موتور اصلی ربات Hermes
-    print("🚀 Starting Hermes Gateway...")
+    # 2. Start the main Hermes Gateway engine
+    print("Starting Hermes Gateway...")
     try:
-        # تلاش برای اجرای دستور استاندارد Hermes Agent
+        # Attempt to run the standard Hermes Agent module
         subprocess.run([sys.executable, "-m", "hermes.gateway"], check=True)
     except Exception as e:
-        print(f"⚠️ روش اول اجرا نشد: {e}")
-        print("در حال تلاش برای روش جایگزین (hermes gateway run)...")
+        print(f"First method failed: {e}")
+        print("Attempting fallback method (hermes gateway run)...")
         try:
             subprocess.run(["hermes", "gateway", "run"], check=True)
         except Exception as e2:
-            print(f"❌ خطای حیاتی: نمی‌توان Hermes را اجرا کرد. {e2}")
-            print("لطفاً بررسی کنید که دستور اجرای صحیح ربات شما چیست.")
+            print(f"Critical error: Cannot start Hermes. {e2}")
+            print("Please verify the correct execution command for your bot.")
             sys.exit(1)
